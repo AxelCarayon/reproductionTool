@@ -4,6 +4,7 @@ import subprocess
 import sys
 from git import repo
 import yaml
+import hashlib
 
 path = "./"
 
@@ -49,7 +50,7 @@ def searchForInputFolder() -> None:
     global inputFolder
     print("Searching for input folder...")
     if folderExists("inputs"):
-        inputFolder = "inputs"
+        inputFolder = "inputs/"
         print(f"{path}{inputFolder} found !")
     else:
         raise Exception(f"{path}/inputs folder does not exist")
@@ -58,7 +59,7 @@ def searchForOutputFolder() -> None:
     global outputFolder
     print("Searching for output folder...")
     if folderExists("outputs"):
-        outputFolder = "outputs"
+        outputFolder = "outputs/"
         print(f"{path}{outputFolder} found !")
     else:
         raise Exception(f"{path}/outputs folder does not exist")
@@ -92,7 +93,6 @@ def scanInputFiles() -> None:
         inputFiles.append(file)
 
 def scanOutputsGenerated() -> None:
-    print(outputFolder)
     for file in os.listdir(outputFolder):
         outputFiles.append(file)
 
@@ -103,7 +103,8 @@ def writeInYaml() -> None:
         cur_yaml.update({"commands":commandsFile})
         cur_yaml.update({"inputs":inputFiles})
         cur_yaml.update({"outputs":outputFiles})
-        print(cur_yaml)
+        checksums = {"checksums":genChecksums()}
+        cur_yaml.update(checksums)
     with open('experimentResume.yaml', 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
@@ -111,7 +112,6 @@ def branchExists(branchName) -> bool:
     return branchName in repository.references
 
 def pushBranch(version=1) -> None:
-    print(experimentName)
     while (branchExists(f"{experimentName}Experiment{version}")):
         version += 1
     else:
@@ -120,7 +120,19 @@ def pushBranch(version=1) -> None:
         repository.git.commit(m=f"{experimentName}Experiment{version}")
         repository.git.push('--set-upstream', repository.remote().name, f"{experimentName}Experiment{version}")
         repository.git.checkout(experimentName)
-            
+
+def genChecksum(file) -> str :
+    hash_md5 = hashlib.md5()
+    with open(file, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+def genChecksums() -> list[dict]:
+    checksums = []
+    for file in outputFiles:
+        checksums.append({file : genChecksum(outputFolder+file)})
+    return checksums
 
 if (__name__ == "__main__"):
     if (len(sys.argv) <2):
