@@ -26,6 +26,7 @@ def isGitRepo(path) -> bool:
         return True
     except git.exc.InvalidGitRepositoryError:
         return False
+
 def init(pathInput) -> None :
     global repository,path,experimentName
     if isGitRepo(pathInput):
