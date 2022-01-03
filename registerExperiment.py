@@ -13,7 +13,7 @@ inputFiles = []
 
 paramsFolder = None
 
-commandsFile = None
+commandsFile = "commands.txt"
 
 experimentName = None
 
@@ -78,6 +78,24 @@ def askForCommandsFile() -> None:
     if not fileExists(commandsFile):
         raise Exception(f"{commandsFile} file does not exist")
 
+def captureExperiment() -> None :
+    print("Capturing commands in terminal, when the experiment is done, type \"done\"")
+    inputs = []
+    userInput = input()
+    while (userInput != "done"):
+        inputs.append(userInput)
+        process = subprocess.run(userInput, shell=True)
+        process.check_returncode()
+        userInput = input()
+    print(f"Done recording the experiment, writing commands in a {commandsFile} file")
+    registeringExperimentInputs(inputs)
+
+def registeringExperimentInputs(inputs) -> None:
+    with open(commandsFile, "w") as file:
+        for input in inputs:
+            file.write(input+"\n")
+
+
 def runExperiment() -> None:
     print("Trying to run experiment")
     file = open(commandsFile, "r")
@@ -118,12 +136,16 @@ def pushBranch(version=1) -> None:
         version += 1
     else:
         print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
-        repository.git.checkout('-b', f"{experimentName}Experiment{version}")
-        repository.git.add(all=True)
-        repository.git.commit(m=f"{experimentName}Experiment{version}")
-        repository.git.push('--set-upstream', repository.remote().name, f"{experimentName}Experiment{version}")
+        try:
+            repository.git.checkout('-b', f"{experimentName}Experiment{version}")
+            repository.git.add(all=True)
+            repository.git.commit(m=f"{experimentName}Experiment{version}")
+            repository.git.push('--set-upstream', repository.remote().name, f"{experimentName}Experiment{version}")
+            print("done")
+        except Exception as e:
+            print("error while pushing branch")
+            print(e)
         repository.git.checkout(experimentName)
-        print("done")
 
 def genChecksum(file) -> str :
     hash_md5 = hashlib.md5()
@@ -144,8 +166,12 @@ def run(folder) -> None :
     searchForInputFolder()
     searchForOutputFolder()
     searchForParamsFolder()
-    askForCommandsFile()
-    runExperiment()
+    userInput = input("Do you have a pre-recorded commands file? (y/n)")
+    if userInput == "y":
+        askForCommandsFile()
+        runExperiment()
+    else:
+        captureExperiment()
     scanInputFiles()
     scanOutputsGenerated()
     writeInYaml()
