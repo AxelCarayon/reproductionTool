@@ -113,14 +113,17 @@ def branchExists(branchName) -> bool:
     return branchName in repository.references
 
 def pushBranch(version=1) -> None:
+    print("Pushing branch...")
     while (branchExists(f"{experimentName}Experiment{version}")):
         version += 1
     else:
+        print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
         repository.git.checkout('-b', f"{experimentName}Experiment{version}")
         repository.git.add(all=True)
         repository.git.commit(m=f"{experimentName}Experiment{version}")
         repository.git.push('--set-upstream', repository.remote().name, f"{experimentName}Experiment{version}")
         repository.git.checkout(experimentName)
+        print("done")
 
 def genChecksum(file) -> str :
     hash_md5 = hashlib.md5()

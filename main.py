@@ -17,3 +17,6 @@ if (__name__ == "__main__"):
             print("Please specify a branch")
             exit(1)
         loadExperiment.run(args.load, args.branch)
+    if (not args.save) and (not args.load):
+        print("Please specify an action")
+        exit(1)
