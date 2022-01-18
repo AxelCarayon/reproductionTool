@@ -1,4 +1,7 @@
+from cmath import e
 import os
+import re
+from xmlrpc.client import Boolean
 import git
 import subprocess
 import yaml
@@ -20,6 +23,9 @@ experimentName = None
 outputFolder = None
 outputFiles = []
 
+currentTag = None
+tags = None
+
 def isGitRepo(path) -> bool:
     try:
         git.Repo(path)
@@ -28,7 +34,7 @@ def isGitRepo(path) -> bool:
         return False
 
 def init(pathInput) -> None :
-    global repository,path,experimentName
+    global repository,path,experimentName,tags, currentTag
     if isGitRepo(pathInput):
         path += pathInput
         if not (pathInput[len(pathInput)-1] == "/"):
@@ -38,6 +44,13 @@ def init(pathInput) -> None :
         os.chdir(path)
     else :
         raise Exception(f"{pathInput} is not a git repository")
+    tags = repository.tags
+    currentTag = repository.git.describe('--tags')
+    if not(currentVersionIsTagged()):
+        raise Exception("Current version is not tagged, you can only reproduce an experiment from a tagged version.")
+
+def currentVersionIsTagged() -> bool:
+    return currentTag in tags
 
 def fileExists(fileName) -> bool:
     return os.path.exists(fileName)
@@ -127,25 +140,26 @@ def writeInYaml() -> None:
     with open('experimentResume.yaml', 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
-def branchExists(branchName) -> bool:
-    return branchName in repository.references
+def successfullyCreatedNewBranch(name) -> Boolean :
+    try:
+        repository.git.checkout('-b',name)
+        return True
+    except Exception as e:
+        return False
 
 def pushBranch(version=1) -> None:
     print("Pushing branch...")
-    while (branchExists(f"{experimentName}Experiment{version}")):
+    while not(successfullyCreatedNewBranch(f"{experimentName}Experiment{version}")):
         version += 1
-    else:
-        print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
-        try:
-            repository.git.checkout('-b', f"{experimentName}Experiment{version}")
-            repository.git.add(all=True)
-            repository.git.commit(m=f"{experimentName}Experiment{version}")
-            repository.git.push('--set-upstream', repository.remote().name, f"{experimentName}Experiment{version}")
-            print("done")
-        except Exception as e:
-            print("error while pushing branch")
-            print(e)
-        repository.git.checkout(experimentName)
+    newTag = f"{currentTag}-e{version}"
+    print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
+    repository.git.add(all=True)
+    repository.git.commit(m=f"{experimentName}Experiment{version}")
+    repository.git.push('--set-upstream',repository.remote().name,f"{experimentName}Experiment{version}")
+    repository.git.tag(newTag)
+    repository.git.push('origin',newTag)
+    repository.git.checkout(experimentName)
+    print("done")
 
 def genChecksum(file) -> str :
     hash_md5 = hashlib.md5()
