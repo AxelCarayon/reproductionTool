@@ -16,7 +16,7 @@ inputFiles = []
 
 paramsFolder = None
 
-commandsFile = None
+commandsFile = "commands.txt"
 
 experimentName = None
 
@@ -91,6 +91,24 @@ def askForCommandsFile() -> None:
     if not fileExists(commandsFile):
         raise Exception(f"{commandsFile} file does not exist")
 
+def captureExperiment() -> None :
+    print("Capturing commands in terminal, when the experiment is done, type \"done\"")
+    inputs = []
+    userInput = input()
+    while (userInput != "done"):
+        inputs.append(userInput)
+        process = subprocess.run(userInput, shell=True)
+        process.check_returncode()
+        userInput = input()
+    print(f"Done recording the experiment, writing commands in a {commandsFile} file")
+    registeringExperimentInputs(inputs)
+
+def registeringExperimentInputs(inputs) -> None:
+    with open(commandsFile, "w") as file:
+        for input in inputs:
+            file.write(input+"\n")
+
+
 def runExperiment() -> None:
     print("Trying to run experiment")
     file = open(commandsFile, "r")
@@ -162,8 +180,12 @@ def run(folder) -> None :
     searchForInputFolder()
     searchForOutputFolder()
     searchForParamsFolder()
-    askForCommandsFile()
-    runExperiment()
+    userInput = input("Do you have a pre-recorded commands file? (y/n)")
+    if userInput == "y":
+        askForCommandsFile()
+        runExperiment()
+    else:
+        captureExperiment()
     scanInputFiles()
     scanOutputsGenerated()
     writeInYaml()
