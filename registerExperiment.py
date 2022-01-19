@@ -1,11 +1,11 @@
-from cmath import e
 import os
-import re
-from xmlrpc.client import Boolean
 import git
 import subprocess
 import yaml
 import hashlib
+import collections
+
+EXPERIMENT_RESUME = "experimentResume.yaml"
 
 path = "./"
 
@@ -25,6 +25,7 @@ outputFiles = []
 
 currentTag = None
 tags = None
+
 
 def isGitRepo(path) -> bool:
     try:
@@ -130,15 +131,21 @@ def runExperiment() -> None:
 def scanInputFiles() -> None:
     for file in os.listdir(inputFolder):
         if not file.endswith(".gitkeep"):
-            inputFiles.append(file)
+            inputFiles.append(f"{inputFolder}{file}")
 
 def scanOutputsGenerated() -> None:
     for file in os.listdir(outputFolder):
         if not file.endswith(".gitkeep"):
-            outputFiles.append(file)
+            outputFiles.append(f"{outputFolder}{file}")
+
+def checkGeneratedFiles() -> None : 
+    changesNotAdded = [ item.a_path for item in repository.index.diff(None) ]
+    untrackedFiles = repository.untracked_files
+    if collections.Counter(outputFiles + inputFiles) != collections.Counter(untrackedFiles + changesNotAdded):
+        raise Exception("There were files generated or modified outside the input and output folders")
 
 def writeInYaml() -> None:
-    with open("experimentResume.yaml", "r") as yamlFile:
+    with open(EXPERIMENT_RESUME, "r") as yamlFile:
         cur_yaml = yaml.safe_load(yamlFile)
         cur_yaml.update({"name":experimentName})
         cur_yaml.update({"commands":commandsFile})
@@ -149,7 +156,7 @@ def writeInYaml() -> None:
     with open('experimentResume.yaml', 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
-def successfullyCreatedNewBranch(name) -> Boolean :
+def successfullyCreatedNewBranch(name) -> bool :
     try:
         repository.git.checkout('-b',name)
         return True
@@ -180,10 +187,8 @@ def genChecksum(file) -> str :
 def genChecksums() -> list[dict]:
     checksums = []
     for file in outputFiles:
-        checksums.append({file : genChecksum(outputFolder+file)})
+        checksums.append({file : genChecksum(file)})
     return checksums
-
-
 
 def run(folder) -> None :
     init(folder)
@@ -199,5 +204,6 @@ def run(folder) -> None :
         captureExperiment()
     scanInputFiles()
     scanOutputsGenerated()
+    checkGeneratedFiles()
     writeInYaml()
     pushBranch()
