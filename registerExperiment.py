@@ -33,6 +33,14 @@ def isGitRepo(path) -> bool:
     except git.exc.InvalidGitRepositoryError:
         return False
 
+def checkForChanges() -> None:
+    changesNotAdded = [ item.a_path for item in repository.index.diff(None) ]
+    changesAdded = [ item.a_path for item in repository.index.diff(repository.head.name) ]
+    untrackedFiles = repository.untracked_files
+
+    if ((len(changesNotAdded) + len(changesAdded) + len(untrackedFiles)) > 0):
+        raise Exception("There are changes in the repository since the last commit, you can only register an experiment from a clean repository.")
+
 def init(pathInput) -> None :
     global repository,path,experimentName,tags, currentTag
     if isGitRepo(pathInput):
@@ -44,6 +52,7 @@ def init(pathInput) -> None :
         os.chdir(path)
     else :
         raise Exception(f"{pathInput} is not a git repository")
+    checkForChanges()
     tags = repository.tags
     currentTag = repository.git.describe('--tags')
     if not(currentVersionIsTagged()):
@@ -173,6 +182,8 @@ def genChecksums() -> list[dict]:
     for file in outputFiles:
         checksums.append({file : genChecksum(outputFolder+file)})
     return checksums
+
+
 
 def run(folder) -> None :
     init(folder)
