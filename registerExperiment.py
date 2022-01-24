@@ -71,12 +71,16 @@ def folderExists(folderName) -> bool:
 
 def searchForInputFolder() -> None:
     global inputFolder
-    print("Searching for input folder...")
-    if folderExists("inputs"):
-        inputFolder = "inputs/"
-        print(f"{path}{inputFolder} found !")
+    answer = input("If you use input data, where are they stored ? Give the path from the root of the repository : ")
+    if answer == "":
+        warnings.warn("No input folder given, no input files will be registered")
     else:
-        raise Exception(f"{path}/inputs folder does not exist")
+        if not folderExists("inputs"):
+            raise Exception(f"{path}/{answer} folder does not exist")
+        else:
+            if not answer.endswith("/"):
+                answer+="/"
+            inputFolder = answer
 
 def searchForOutputFolder() -> None:
     global outputFolder
@@ -207,9 +211,10 @@ def run(folder) -> None :
         runExperiment()
     else:
         captureExperiment()
-    scanInputFiles()
+    if inputFolder != None :
+        scanInputFiles()
     if outputFolder != None :
         scanOutputsGenerated()
     checkGeneratedFiles()
     writeInYaml()
-    #pushBranch()
+    pushBranch()
