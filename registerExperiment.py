@@ -4,6 +4,7 @@ import subprocess
 import yaml
 import hashlib
 import collections
+import warnings
 
 EXPERIMENT_RESUME = "experimentResume.yaml"
 
@@ -79,12 +80,16 @@ def searchForInputFolder() -> None:
 
 def searchForOutputFolder() -> None:
     global outputFolder
-    print("Searching for output folder...")
-    if folderExists("outputs"):
-        outputFolder = "outputs/"
-        print(f"{path}{outputFolder} found !")
+    answer = input("Where are the outputs generated ? Give the path from the root of the repository : ")
+    if answer == "":
+        warnings.warn("No output folder given, no output files will be registered")
     else:
-        raise Exception(f"{path}/outputs folder does not exist")
+        if not folderExists(answer):
+            raise Exception(f"{answer} folder does not exist")
+        else:
+            if not answer.endswith("/"):
+                answer+="/"
+            outputFolder = answer
 
 def searchForParamsFolder() -> None:
     global paramsFolder
@@ -203,7 +208,8 @@ def run(folder) -> None :
     else:
         captureExperiment()
     scanInputFiles()
-    scanOutputsGenerated()
+    if outputFolder != None :
+        scanOutputsGenerated()
     checkGeneratedFiles()
     writeInYaml()
-    pushBranch()
+    #pushBranch()
