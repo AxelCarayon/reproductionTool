@@ -16,6 +16,7 @@ inputFolder = None
 inputFiles = []
 
 paramsFolder = None
+paramsFiles = []
 
 commandsFile = "commands.txt"
 
@@ -75,7 +76,7 @@ def searchForInputFolder() -> None:
     if answer == "":
         warnings.warn("No input folder given, no input files will be registered")
     else:
-        if not folderExists("inputs"):
+        if not folderExists(answer):
             raise Exception(f"{path}/{answer} folder does not exist")
         else:
             if not answer.endswith("/"):
@@ -97,10 +98,16 @@ def searchForOutputFolder() -> None:
 
 def searchForParamsFolder() -> None:
     global paramsFolder
-    if folderExists("params"):
-        paramsFolder = "params"
+    answer = input("In which folder do you store your parameters ? Give the path from the root of the repository : ")
+    if answer == "":
+        warnings.warn("No parameters folder given, no parameters will be registered")
     else:
-        raise Exception(f"{path}/params folder does not exist")
+        if not folderExists(answer):
+            raise Exception(f"{path}/{answer} folder does not exist")
+        else:
+            if not answer.endswith("/"):
+                answer+="/"
+            paramsFolder = answer
 
 def askForCommandsFile() -> None:
     global commandsFile
@@ -147,6 +154,11 @@ def scanOutputsGenerated() -> None:
         if not file.endswith(".gitkeep"):
             outputFiles.append(f"{outputFolder}{file}")
 
+def scanParameters() -> None:
+    for file in os.listdir(paramsFolder):
+        if not file.endswith(".gitkeep"):
+            paramsFiles.append(f"{paramsFolder}{file}")
+
 def checkGeneratedFiles() -> None : 
     changesNotAdded = [ item.a_path for item in repository.index.diff(None) ]
     untrackedFiles = repository.untracked_files
@@ -160,6 +172,7 @@ def writeInYaml() -> None:
         cur_yaml.update({"commands":commandsFile})
         cur_yaml.update({"inputs":inputFiles})
         cur_yaml.update({"outputs":outputFiles})
+        cur_yaml.update({"params":paramsFiles})
         checksums = {"checksums":genChecksums()}
         cur_yaml.update(checksums)
     with open('experimentResume.yaml', 'w') as yamlFile:
@@ -215,6 +228,8 @@ def run(folder) -> None :
         scanInputFiles()
     if outputFolder != None :
         scanOutputsGenerated()
+    if paramsFolder != None :
+        scanParameters()
     checkGeneratedFiles()
     writeInYaml()
     pushBranch()
