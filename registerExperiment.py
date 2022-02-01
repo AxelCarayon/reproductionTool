@@ -3,7 +3,6 @@ import git
 import subprocess
 import yaml
 import hashlib
-import collections
 import warnings
 
 EXPERIMENT_RESUME = "experimentResume.yaml"
@@ -117,18 +116,6 @@ def askForCommandsFile() -> None:
     if not fileExists(commandsFile):
         raise Exception(f"{commandsFile} file does not exist")
 
-def captureExperiment() -> None :
-    print("Capturing commands in terminal, when the experiment is done, type \"done\"")
-    inputs = []
-    userInput = input()
-    while (userInput != "done"):
-        inputs.append(userInput)
-        process = subprocess.run(userInput, shell=True)
-        process.check_returncode()
-        userInput = input()
-    print(f"Done recording the experiment, writing commands in a {commandsFile} file")
-    registeringExperimentInputs(inputs)
-
 def registeringExperimentInputs(inputs) -> None:
     with open(commandsFile, "w") as file:
         for input in inputs:
@@ -160,10 +147,23 @@ def scanParameters() -> None:
             paramsFiles.append(f"{paramsFolder}{file}")
 
 def checkGeneratedFiles() -> None : 
-    changesNotAdded = [ item.a_path for item in repository.index.diff(None) ]
-    untrackedFiles = repository.untracked_files
-    if collections.Counter(outputFiles + inputFiles) != collections.Counter(untrackedFiles + changesNotAdded):
-        raise Exception("There were files generated or modified outside the input and output folders")
+    editedFiles = [ item.a_path for item in repository.index.diff(None) ] + repository.untracked_files
+    outOfPlaceFiles = []
+    logFile = open("outOfPlaceFiles.log","w")
+    for file in editedFiles:
+        if (outputFolder is not None and file.startswith(outputFolder)) and \
+           (inputFolder is not None and file.startswith(inputFolder)) and \
+           (paramsFolder is not None and file.startswith(paramsFolder)):
+            outOfPlaceFiles.append(file)
+            logFile.write(f"{file}\n")
+
+    logFile.close()
+    if len(outOfPlaceFiles) == 0:
+        os.remove("outOfPlaceFiles.log")
+    else :
+        raise Exception("""Some files modified or created were not registered as input, output or parameter file.
+        Thoses files are logged in the file outOfPlaceFiles.log""")
+
 
 def writeInYaml() -> None:
     with open(EXPERIMENT_RESUME, "r") as yamlFile:
@@ -212,6 +212,7 @@ def genChecksums() -> list[dict]:
         checksums.append({file : genChecksum(file)})
     return checksums
 
+
 def run(folder) -> None :
     init(folder)
     repository.active_branch.checkout()
@@ -223,7 +224,9 @@ def run(folder) -> None :
         askForCommandsFile()
         runExperiment()
     else:
-        captureExperiment()
+        done = ""
+        while(done != "done"):
+            done = input("Run your experiment and then type 'done' when you are done : ")
     if inputFolder != None :
         scanInputFiles()
     if outputFolder != None :
