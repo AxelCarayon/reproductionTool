@@ -245,4 +245,7 @@ def run(folder) -> None :
         scanParameters()
     checkGeneratedFiles()
     writeInYaml()
-    #pushBranch()
+    print("Please check the experimentResume.yaml, if everything is correct, press enter to continue, otherwise type \"abort\"")
+    if input() == "abort":
+        raise Exception("Aborted")
+    pushBranch()
