@@ -17,7 +17,8 @@ inputFiles = []
 paramsFolder = None
 paramsFiles = []
 
-commandsFile = "commands.txt"
+commandsFile = None
+instructionFile = None
 
 experimentName = None
 
@@ -111,10 +112,18 @@ def searchForParamsFolder() -> None:
 def askForCommandsFile() -> None:
     global commandsFile
     commandsFile = input("Enter the name of the commands file: ")
-    if commandsFile == "":
-        raise Exception("No commands file given")
     if not fileExists(commandsFile):
         raise Exception(f"{commandsFile} file does not exist")
+
+def askForInstructionFile() -> None :
+    global instructionFile
+    print("If you have an instruction file, enter its name, otherwise press enter")
+    instructionFile = input()
+    if instructionFile == "":
+        warnings.warn("No instruction file given, make sure you give instructions to reproduce the experiment along with it")
+    else:
+        if not fileExists(instructionFile):
+            raise Exception(f"{instructionFile} file does not exist")
 
 def registeringExperimentInputs(inputs) -> None:
     with open(commandsFile, "w") as file:
@@ -224,6 +233,7 @@ def run(folder) -> None :
         askForCommandsFile()
         runExperiment()
     else:
+        askForInstructionFile()
         done = ""
         while(done != "done"):
             done = input("Run your experiment and then type 'done' when you are done : ")
@@ -235,4 +245,4 @@ def run(folder) -> None :
         scanParameters()
     checkGeneratedFiles()
     writeInYaml()
-    pushBranch()
+    #pushBranch()

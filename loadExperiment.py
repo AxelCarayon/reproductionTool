@@ -47,6 +47,7 @@ def getParameters() -> None :
         inputFiles = parameters.get('inputs')
         beforeHash = parameters.get('checksums')
 
+
 def runExperiment() -> None :
     file = open(commandsFile, "r")
     for line in file.read().splitlines():
@@ -93,5 +94,3 @@ def run(repository, branch) -> None :
         print("The exepriment was reproduced with succes but some output files are differents.")
     else :
         print("The exepriment was reproduced with succes !")
-    
-#TODO : laisser à l'utilisateur le temps de reproduire l'experience
