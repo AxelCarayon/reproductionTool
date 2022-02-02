@@ -182,6 +182,7 @@ def writeInYaml() -> None:
         cur_yaml.update({"inputs":inputFiles})
         cur_yaml.update({"outputs":outputFiles})
         cur_yaml.update({"params":paramsFiles})
+        cur_yaml.update({"instruction":instructionFile})
         checksums = {"checksums":genChecksums()}
         cur_yaml.update(checksums)
     with open('experimentResume.yaml', 'w') as yamlFile:
