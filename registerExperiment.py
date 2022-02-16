@@ -188,19 +188,15 @@ def writeInYaml() -> None:
     with open('experimentResume.yaml', 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
-def successfullyCreatedNewBranch(name) -> bool :
-    try:
-        repository.git.checkout('-b',name)
-        return True
-    except Exception as e:
-        return False
 
 def pushBranch(version=1) -> None:
     print("Pushing branch...")
-    while not(successfullyCreatedNewBranch(f"{experimentName}Experiment{version}")):
+    while f"{experimentName}Experiment{version}" in repository.remote().refs:
+        print(f"{experimentName}Experiment{version} already exists")
         version += 1
     newTag = f"{currentTag}-e{version}"
     print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
+    repository.git.checkout(b=f"{experimentName}Experiment{version}")
     repository.git.add(all=True)
     repository.git.commit(m=f"{experimentName}Experiment{version}")
     repository.git.push('--set-upstream',repository.remote().name,f"{experimentName}Experiment{version}")
