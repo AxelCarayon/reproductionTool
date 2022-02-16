@@ -109,5 +109,3 @@ def run(repository, branch) -> None :
         print("The exepriment was reproduced with succes but some output files are differents.")
     else :
         print("The exepriment was reproduced with succes !")
-
-#TODO : sur la mainExperiment15, on a du changement quand on reproduit l'expérience ...
