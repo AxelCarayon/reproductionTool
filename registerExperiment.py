@@ -17,7 +17,8 @@ inputFiles = []
 paramsFolder = None
 paramsFiles = []
 
-commandsFile = "commands.txt"
+commandsFile = None
+instructionFile = None
 
 experimentName = None
 
@@ -111,10 +112,18 @@ def searchForParamsFolder() -> None:
 def askForCommandsFile() -> None:
     global commandsFile
     commandsFile = input("Enter the name of the commands file: ")
-    if commandsFile == "":
-        raise Exception("No commands file given")
     if not fileExists(commandsFile):
         raise Exception(f"{commandsFile} file does not exist")
+
+def askForInstructionFile() -> None :
+    global instructionFile
+    print("If you have an instruction file, enter its name, otherwise press enter")
+    instructionFile = input()
+    if instructionFile == "":
+        warnings.warn("No instruction file given, make sure you give instructions to reproduce the experiment along with it")
+    else:
+        if not fileExists(instructionFile):
+            raise Exception(f"{instructionFile} file does not exist")
 
 def registeringExperimentInputs(inputs) -> None:
     with open(commandsFile, "w") as file:
@@ -173,24 +182,21 @@ def writeInYaml() -> None:
         cur_yaml.update({"inputs":inputFiles})
         cur_yaml.update({"outputs":outputFiles})
         cur_yaml.update({"params":paramsFiles})
+        cur_yaml.update({"instruction":instructionFile})
         checksums = {"checksums":genChecksums()}
         cur_yaml.update(checksums)
     with open('experimentResume.yaml', 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
-def successfullyCreatedNewBranch(name) -> bool :
-    try:
-        repository.git.checkout('-b',name)
-        return True
-    except Exception as e:
-        return False
 
 def pushBranch(version=1) -> None:
     print("Pushing branch...")
-    while not(successfullyCreatedNewBranch(f"{experimentName}Experiment{version}")):
+    while f"{experimentName}Experiment{version}" in repository.remote().refs:
+        print(f"{experimentName}Experiment{version} already exists")
         version += 1
     newTag = f"{currentTag}-e{version}"
     print(f"creating {experimentName}Experiment{version} branch and pushing changes to it ...")
+    repository.git.checkout(b=f"{experimentName}Experiment{version}")
     repository.git.add(all=True)
     repository.git.commit(m=f"{experimentName}Experiment{version}")
     repository.git.push('--set-upstream',repository.remote().name,f"{experimentName}Experiment{version}")
@@ -224,6 +230,7 @@ def run(folder) -> None :
         askForCommandsFile()
         runExperiment()
     else:
+        askForInstructionFile()
         done = ""
         while(done != "done"):
             done = input("Run your experiment and then type 'done' when you are done : ")
@@ -235,4 +242,7 @@ def run(folder) -> None :
         scanParameters()
     checkGeneratedFiles()
     writeInYaml()
+    print("Please check the experimentResume.yaml, if everything is correct, press enter to continue, otherwise type \"abort\"")
+    if input() == "abort":
+        raise Exception("Aborted")
     pushBranch()

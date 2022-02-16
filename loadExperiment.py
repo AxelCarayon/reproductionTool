@@ -12,8 +12,10 @@ repo = None
 folder = None
 
 commandsFile = None
+instructionFile = None
 
 inputFiles = []
+outputFiles = []
 
 beforeHash = None
 
@@ -37,7 +39,7 @@ def init(repository,branch) -> None :
     os.chdir(folder)
 
 def getParameters() -> None :
-    global commandsFile, inputFiles, outputFiles, beforeHash
+    global commandsFile, inputFiles, outputFiles, beforeHash, instructionFile
     if not (os.path.exists('experimentResume.yaml')):
         raise Exception("No exeperimentResume.yaml file found, the branch is not an exeperiment")
     with open('experimentResume.yaml', 'r') as stream:
@@ -46,6 +48,8 @@ def getParameters() -> None :
         outputFiles = parameters.get('outputs')
         inputFiles = parameters.get('inputs')
         beforeHash = parameters.get('checksums')
+        instructionFile = parameters.get('instructions')
+
 
 def runExperiment() -> None :
     file = open(commandsFile, "r")
@@ -55,6 +59,15 @@ def runExperiment() -> None :
         process.check_returncode()
         print("done")
 
+def checkForInstructions() -> None :
+    if (instructionFile != None) :
+        print("You can check the instructions for the experiment in the file : " + instructionFile)
+    else :
+        warnings.warn("No instructions for the experiment found in the repository")
+    print("Run the exepriment and then press enter when it's done")
+    done = "nope"
+    while (done != "") :
+        done = input()
 
 def genChecksum(file) -> str :
     hash_md5 = hashlib.md5()
@@ -67,7 +80,7 @@ def genChecksums() -> list[dict]:
     checksums = []
     for file in os.listdir(OUTPUT_FOLDER) :
         if not file.endswith(".gitkeep"):
-            checksums.append({file : genChecksum(f'outputs/{file}')})
+            checksums.append({f"{OUTPUT_FOLDER}/{file}" : genChecksum(f'{OUTPUT_FOLDER}/{file}')})
     return checksums
 
 
@@ -76,7 +89,7 @@ def compareChecksums() -> bool:
     for (dict1, dict2) in zip(beforeHash, genChecksums()):
         for (key, value) in dict1.items():
             if dict2.get(key) != value :
-                warnings.warn(f"{OUTPUT_FOLDER}/{key} has changed")
+                warnings.warn(f"{key} has changed")
                 changes = True
     return changes
 
@@ -87,11 +100,14 @@ def run(repository, branch) -> None :
     print("Getting the experiment parameters ...")
     getParameters()
     print("Running the experiment ...")
-    runExperiment()
+    if (commandsFile != None) : 
+        runExperiment()
+    else :
+        checkForInstructions()
     print("Comparing checksums of the outputs ...")
     if (compareChecksums()) : 
         print("The exepriment was reproduced with succes but some output files are differents.")
     else :
         print("The exepriment was reproduced with succes !")
-    
-#TODO : laisser à l'utilisateur le temps de reproduire l'experience
+
+#TODO : sur la mainExperiment15, on a du changement quand on reproduit l'expérience ...
