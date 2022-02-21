@@ -17,6 +17,7 @@ instructionFile = None
 inputFiles = []
 outputFiles = []
 
+dockerfileIsPresent = False
 beforeHash = None
 
 def init(repository,branch) -> None :
@@ -39,7 +40,7 @@ def init(repository,branch) -> None :
     os.chdir(folder)
 
 def getParameters() -> None :
-    global commandsFile, inputFiles, outputFiles, beforeHash, instructionFile
+    global commandsFile, inputFiles, outputFiles, beforeHash, instructionFile, dockerfileIsPresent
     if not (os.path.exists('experimentResume.yaml')):
         raise Exception("No exeperimentResume.yaml file found, the branch is not an exeperiment")
     with open('experimentResume.yaml', 'r') as stream:
@@ -49,6 +50,7 @@ def getParameters() -> None :
         inputFiles = parameters.get('inputs')
         beforeHash = parameters.get('checksums')
         instructionFile = parameters.get('instructions')
+        dockerfileIsPresent = parameters.get('dockerfile')
 
 
 def runExperiment() -> None :
@@ -94,16 +96,44 @@ def compareChecksums() -> bool:
     return changes
 
 
+def buildDockerImage() -> None:
+    print("Building the docker image ...")
+    try :
+        subprocess.run(f"docker build -t experimentreproduction ./",shell=True).check_returncode()
+    except :
+        subprocess.run(f"sudo docker build -t experimentreproduction ./",shell=True).check_returncode()
+
+def getWorkir() -> str :
+    workdir = "/" 
+    with open("Dockerfile","r") as file:
+        for line in file.read().splitlines():
+            if line.startswith("WORKDIR"):
+                workdir = line.split(" ")[1]
+    return workdir
+
+def runDockerImage() -> None:
+    print("binding docker image to the current directory and running it...")
+    try:
+        subprocess.run(f"docker run -it --mount type=bind,source=\"$PWD\",target={getWorkir()} experimentreproduction",shell=True).check_returncode()
+    except :
+        subprocess.run(f"sudo docker run -it --mount type=bind,source=\"$PWD\",target={getWorkir()} experimentreproduction",shell=True).check_returncode()
+
+
 def run(repository, branch) -> None :
     print("Initializing the experiment repository ...")
     init(repository, branch)
     print("Getting the experiment parameters ...")
     getParameters()
     print("Running the experiment ...")
-    if (commandsFile != None) : 
-        runExperiment()
-    else :
-        checkForInstructions()
+    if (dockerfileIsPresent) :
+        print("Dockerimage was found ! Using it to run the experiment...")
+        buildDockerImage()
+        runDockerImage()
+    else:
+        if (commandsFile != None) : 
+            runExperiment()
+        else :
+            checkForInstructions()
     print("Comparing checksums of the outputs ...")
     if (compareChecksums()) : 
         print("The exepriment was reproduced with succes but some output files are differents.")
