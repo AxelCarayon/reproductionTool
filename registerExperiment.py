@@ -1,4 +1,6 @@
+from multiprocessing.connection import answer_challenge
 import os
+from unicodedata import name
 import git
 import subprocess
 import yaml
@@ -6,6 +8,7 @@ import hashlib
 import warnings
 
 EXPERIMENT_RESUME = "experimentResume.yaml"
+DOCKERFILE = "Dockerfile"
 
 path = "./"
 
@@ -36,13 +39,39 @@ def isGitRepo(path) -> bool:
     except git.exc.InvalidGitRepositoryError:
         return False
 
-def checkForChanges() -> None:
-    changesNotAdded = [ item.a_path for item in repository.index.diff(None) ]
-    changesAdded = [ item.a_path for item in repository.index.diff(repository.head.name) ]
-    untrackedFiles = repository.untracked_files
 
-    if ((len(changesNotAdded) + len(changesAdded) + len(untrackedFiles)) > 0):
-        raise Exception("There are changes in the repository since the last commit, you can only register an experiment from a clean repository.")
+
+def dockerfileIsPresent() -> bool:
+    if fileExists(DOCKERFILE):
+        answer = input("A dockerfile was found ! It will be used to reproduce the experiment. Is that ok for you ? (y/n)")
+        if answer == "n":
+            raise Exception("""Remove the dockerfile and try again""")
+        return True
+    else :
+        return False
+
+def buildDockerImage() -> None:
+    print("Building the docker image ...")
+    try :
+        subprocess.run(f"docker build -t {experimentName.lower()}experiment ./",shell=True).check_returncode()
+    except :
+        subprocess.run(f"sudo docker build -t {experimentName.lower()}experiment ./",shell=True).check_returncode()
+
+def getWorkir() -> str :
+    workdir = "/" 
+    with open(DOCKERFILE,"r") as file:
+        for line in file.read().splitlines():
+            if line.startswith("WORKDIR"):
+                workdir = line.split(" ")[1]
+    return workdir
+
+def runDockerImage() -> None:
+    print("binding docker image to the current directory and running it...")
+    try:
+        subprocess.run(f"docker run -it --mount type=bind,source=\"$PWD\",target={getWorkir()} {experimentName.lower()}experiment",shell=True).check_returncode()
+    except :
+        subprocess.run(f"sudo docker run -it --mount type=bind,source=\"$PWD\",target={getWorkir()} {experimentName.lower()}experiment",shell=True).check_returncode()
+    #TODO : vérifier si la reproduction avec un Dockerfile marche dans l'autre sens
 
 def init(pathInput) -> None :
     global repository,path,experimentName,tags, currentTag
@@ -55,7 +84,6 @@ def init(pathInput) -> None :
         os.chdir(path)
     else :
         raise Exception(f"{pathInput} is not a git repository")
-    checkForChanges()
     tags = repository.tags
     currentTag = repository.git.describe('--tags')
     if not(currentVersionIsTagged()):
@@ -70,7 +98,7 @@ def fileExists(fileName) -> bool:
 def folderExists(folderName) -> bool:
     return os.path.isdir(folderName)
 
-def searchForInputFolder() -> None:
+def askForInputFolder() -> None:
     global inputFolder
     answer = input("If you use input data, where are they stored ? Give the path from the root of the repository : ")
     if answer == "":
@@ -83,7 +111,7 @@ def searchForInputFolder() -> None:
                 answer+="/"
             inputFolder = answer
 
-def searchForOutputFolder() -> None:
+def askForOutputFolder() -> None:
     global outputFolder
     answer = input("Where are the outputs generated ? Give the path from the root of the repository : ")
     if answer == "":
@@ -96,7 +124,7 @@ def searchForOutputFolder() -> None:
                 answer+="/"
             outputFolder = answer
 
-def searchForParamsFolder() -> None:
+def askForParamsFolder() -> None:
     global paramsFolder
     answer = input("In which folder do you store your parameters ? Give the path from the root of the repository : ")
     if answer == "":
@@ -155,14 +183,20 @@ def scanParameters() -> None:
         if not file.endswith(".gitkeep"):
             paramsFiles.append(f"{paramsFolder}{file}")
 
+def isNotAnOutputfile(file) -> bool: return file not in outputFiles
+def isNotAnInputfile(file) -> bool: return file not in inputFiles
+def isNotAParamFile(file) -> bool: return file not in paramsFiles
+
 def checkGeneratedFiles() -> None : 
-    editedFiles = [ item.a_path for item in repository.index.diff(None) ] + repository.untracked_files
+    editedFiles = [ item.a_path for item in repository.index.diff(None) ]+ [ item.a_path for item in repository.index.diff(repository.head.name) ] + repository.untracked_files
     outOfPlaceFiles = []
     logFile = open("outOfPlaceFiles.log","w")
     for file in editedFiles:
-        if (outputFolder is not None and file.startswith(outputFolder)) and \
-           (inputFolder is not None and file.startswith(inputFolder)) and \
-           (paramsFolder is not None and file.startswith(paramsFolder)):
+        if  file!=DOCKERFILE and \
+            file!=EXPERIMENT_RESUME and \
+            isNotAnOutputfile(file) and \
+            isNotAnInputfile(file) and \
+            isNotAParamFile(file):
             outOfPlaceFiles.append(file)
             logFile.write(f"{file}\n")
 
@@ -185,7 +219,7 @@ def writeInYaml() -> None:
         cur_yaml.update({"instruction":instructionFile})
         checksums = {"checksums":genChecksums()}
         cur_yaml.update(checksums)
-    with open('experimentResume.yaml', 'w') as yamlFile:
+    with open(EXPERIMENT_RESUME, 'w') as yamlFile:
         yaml.safe_dump(cur_yaml, yamlFile)
 
 
@@ -219,30 +253,43 @@ def genChecksums() -> list[dict]:
     return checksums
 
 
-def run(folder) -> None :
-    init(folder)
-    repository.active_branch.checkout()
-    searchForInputFolder()
-    searchForOutputFolder()
-    searchForParamsFolder()
-    userInput = input("Do you have a pre-recorded commands file? (y/n)")
-    if userInput == "y":
-        askForCommandsFile()
-        runExperiment()
+def askFolders() -> None :
+    askForInputFolder()
+    askForOutputFolder()
+    askForParamsFolder()
+
+def reproduceExperiment() -> None:
+    if dockerfileIsPresent() :
+        buildDockerImage()
+        runDockerImage()
     else:
-        askForInstructionFile()
-        done = ""
-        while(done != "done"):
-            done = input("Run your experiment and then type 'done' when you are done : ")
+        userInput = input("Do you have a pre-recorded commands file? (y/n)")
+        if userInput == "y":
+            askForCommandsFile()
+            runExperiment()
+        else:
+            askForInstructionFile()
+            done = ""
+            while(done != "done"):
+                done = input("Run your experiment and then type 'done' when you are done : ")
+
+def scanAfterExecution() -> None:
     if inputFolder != None :
         scanInputFiles()
     if outputFolder != None :
         scanOutputsGenerated()
     if paramsFolder != None :
         scanParameters()
+
+def run(folder) -> None :
+    init(folder)
+    repository.active_branch.checkout()
+    askFolders()
+    reproduceExperiment()
+    scanAfterExecution()
     checkGeneratedFiles()
     writeInYaml()
-    print("Please check the experimentResume.yaml, if everything is correct, press enter to continue, otherwise type \"abort\"")
+    print(f"Please check the {EXPERIMENT_RESUME} file, if everything is correct, press enter to continue, otherwise type \"abort\"")
     if input() == "abort":
         raise Exception("Aborted")
     pushBranch()
